@@ -1103,11 +1103,65 @@ void hook_SVC_Info(netadr_t from)
     SVC_Info(from);
 }
 
+void custom_SVC_Status_JSON(netadr_t from);
+
 void hook_SVC_Status(netadr_t from)
 {
     if(SVC_ApplyStatusLimit(from))
         return;
-    SVC_Status(from);
+    
+    // Create JSON status response instead of calling original SVC_Status
+    custom_SVC_Status_JSON(from);
+}
+
+void custom_SVC_Status_JSON(netadr_t from)
+{
+    std::string json = "{";
+    
+    // Add basic server info
+    cvar_t *hostname = Cvar_FindVar("sv_hostname");
+    cvar_t *mapname = Cvar_FindVar("mapname");
+    cvar_t *protocol = Cvar_FindVar("protocol");
+    
+    json += "\"hostname\":\"" + std::string(hostname ? hostname->string : "Unknown") + "\",";
+    json += "\"mapname\":\"" + std::string(mapname ? mapname->string : "Unknown") + "\",";
+    json += "\"protocol\":" + std::string(protocol ? protocol->string : "0") + ",";
+    json += "\"maxclients\":" + std::string(sv_maxclients ? sv_maxclients->string : "0") + ",";
+    json += "\"gametype\":\"" + std::string(sv_gametype ? sv_gametype->string : "unknown") + "\",";
+    
+    // Count active clients
+    int numclients = 0;
+    for (int i = 0; i < (sv_maxclients ? sv_maxclients->integer : 0); i++)
+    {
+        client_t *cl = &svs.clients[i];
+        if (cl->state >= CS_CONNECTED)
+            numclients++;
+    }
+    json += "\"clients\":" + std::to_string(numclients) + ",";
+    
+    // Add player list
+    json += "\"players\":[";
+    bool first_player = true;
+    for (int i = 0; i < (sv_maxclients ? sv_maxclients->integer : 0); i++)
+    {
+        client_t *cl = &svs.clients[i];
+        if (cl->state >= CS_CONNECTED)
+        {
+            if (!first_player)
+                json += ",";
+            
+            json += "{";
+            json += "\"name\":\"" + std::string(cl->name) + "\",";
+            json += "\"ping\":" + std::to_string(cl->ping);
+            json += "}";
+            first_player = false;
+        }
+    }
+    json += "]";
+    json += "}";
+    
+    // Send JSON response using the same protocol as original status
+    NET_OutOfBandPrint(NS_SERVER, from, "statusResponse\n%s", json.c_str());
 }
 
 // See https://nachtimwald.com/2017/04/02/constant-time-string-comparison-in-c/
