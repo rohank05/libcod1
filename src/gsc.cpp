@@ -102,6 +102,7 @@ scr_function_t scriptFunctions[] =
 
 #if COMPILE_CURL == 1
     {"webhookMessage", gsc_curl_webhookmessage, 0}, // From Kazam pull request #8
+    {"httpRequest", gsc_curl_request, 0},
 #endif
 
 #if COMPILE_SSL == 1
